@@ -2,7 +2,10 @@ import * as THREE from 'three';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { buildSkeleton, Joints } from './StickFigureParts.js';
 import { createLabel, updateLabel } from './Label.js';
+import { dressInSuit } from './SuitFigure.js';
+import { themeName } from '../utils/Theme.js';
 import { Activity, animateActivity, animateWalking, getRestPose } from '../agents/ActivityAnimations.js';
+import { ACTIVITY_LABELS } from '../agents/AgentData.js';
 
 const TRANSITION_DURATION = 0.5;
 const WALK_SPEED = 4.5;
@@ -18,11 +21,17 @@ export class StickFigure {
   private targetPosition = new THREE.Vector3();
   private targetLookAt = new THREE.Vector3();
   private isMoving = false;
+  /** Set when at a desk: standing activities (idle, meeting) are done seated instead. */
+  seated = false;
+  /** Rest pose: undefined = original idle, null = arms down, 0..1 = holding a cup (1 = sip). */
+  hold: number | null | undefined = themeName === 'command-center' ? null : undefined;
+  private cup: THREE.Group | null = null;
 
-  constructor(name: string, accentColor: THREE.Color) {
+  constructor(name: string, accentColor: THREE.Color, variant = 0) {
     this.name = name;
     this.joints = buildSkeleton(accentColor);
-    this.label = createLabel(name, 'idle');
+    if (themeName === 'command-center') dressInSuit(this.joints, variant);
+    this.label = createLabel(name, ACTIVITY_LABELS.idle);
     this.joints.root.add(this.label);
 
     // Apply rest pose
@@ -42,13 +51,35 @@ export class StickFigure {
 
     this.targetActivity = activity;
     this.transitionProgress = 0;
-    updateLabel(this.label, this.name, activity);
+    updateLabel(this.label, this.name, ACTIVITY_LABELS[activity]);
   }
 
   moveTo(position: THREE.Vector3, lookAt: THREE.Vector3): void {
     this.targetPosition.copy(position);
     this.targetLookAt.copy(lookAt);
     this.isMoving = true;
+  }
+
+  get moving(): boolean {
+    return this.isMoving;
+  }
+
+  /** Put a cup (water or coffee) in the right hand. */
+  takeCup(kind: 'water' | 'coffee'): void {
+    this.dropCup()?.removeFromParent();
+    this.cup = createCup(kind);
+    this.cup.position.set(0, -0.32, 0.04);
+    this.joints.rightForearm.add(this.cup);
+    this.hold = 0;
+  }
+
+  /** Take the cup out of the hand; returns it (caller decides where it goes). */
+  dropCup(): THREE.Group | null {
+    const cup = this.cup;
+    this.cup = null;
+    if (cup) cup.removeFromParent();
+    if (this.hold !== undefined) this.hold = null;
+    return cup;
   }
 
   teleportTo(position: THREE.Vector3, lookAt: THREE.Vector3): void {
@@ -97,8 +128,13 @@ export class StickFigure {
         }
       }
 
-      // Walking animation overrides activity animation
+      // Walking animation overrides activity animation (a held cup is carried in front)
       animateWalking(this.joints, elapsed, delta);
+      if (this.cup) {
+        this.joints.rightUpperArm.rotation.x = -0.6;
+        this.joints.rightForearm.rotation.x = -1.1;
+        this.keepCupUpright();
+      }
       return;
     }
 
@@ -112,7 +148,15 @@ export class StickFigure {
     }
 
     // Animate activity
-    animateActivity(this.joints, this.activity, elapsed, delta);
+    animateActivity(this.joints, this.activity, elapsed, delta, this.seated, this.hold);
+    this.keepCupUpright();
+  }
+
+  /** Cancel the arm rotation so the cup stays upright (tilted a little while sipping). */
+  private keepCupUpright(): void {
+    if (!this.cup) return;
+    const j = this.joints;
+    this.cup.rotation.x = -(j.rightUpperArm.rotation.x + j.rightForearm.rotation.x) + (this.hold ?? 0) * 0.5;
   }
 
   private saveCurrentPose(obj: THREE.Object3D): void {
@@ -143,4 +187,33 @@ export class StickFigure {
       obj.rotation.copy(euler);
     }
   }
+}
+
+/** Small cup: clear glass of water, or a white mug of coffee. Origin at the bottom centre. */
+export function createCup(kind: 'water' | 'coffee'): THREE.Group {
+  const g = new THREE.Group();
+  if (kind === 'water') {
+    const glass = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.035, 0.03, 0.1, 14, 1, true),
+      new THREE.MeshPhongMaterial({ color: 0xffffff, transparent: true, opacity: 0.35, side: THREE.DoubleSide }),
+    );
+    glass.position.y = 0.05;
+    const water = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.031, 0.029, 0.07, 14),
+      new THREE.MeshPhongMaterial({ color: 0x9fd4ff, transparent: true, opacity: 0.6 }),
+    );
+    water.position.y = 0.037;
+    g.add(glass, water);
+  } else {
+    const mug = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.034, 0.09, 14), new THREE.MeshToonMaterial({ color: 0xf2f2f2 }));
+    mug.position.y = 0.045;
+    const coffee = new THREE.Mesh(new THREE.CircleGeometry(0.033, 14), new THREE.MeshToonMaterial({ color: 0x3b1d0c }));
+    coffee.rotation.x = -Math.PI / 2;
+    coffee.position.y = 0.088;
+    const handle = new THREE.Mesh(new THREE.TorusGeometry(0.022, 0.007, 6, 10), new THREE.MeshToonMaterial({ color: 0xf2f2f2 }));
+    handle.position.set(0.045, 0.045, 0);
+    g.add(mug, coffee, handle);
+  }
+  g.traverse((o) => { if (o instanceof THREE.Mesh) o.castShadow = true; });
+  return g;
 }

@@ -22,8 +22,51 @@ interface SessionFile {
 }
 
 const CLAUDE_DIR = path.join(os.homedir(), '.claude');
+
+// --- Display names = the job title of the employee who shows this work in the office ---
+// Main sessions are matched by the folder they were started in.
+const FOLDER_ROLES: Record<string, string> = {
+  '취업': '채용 분석가',
+  '논문': '연구원',
+  '수업': '엔지니어',
+  'ai-agent-office': '공간 디자이너',
+  'agents-office-custom': '공간 디자이너',
+};
+// Subagents are matched by agent type (a plugin prefix like "python-development:" is ignored).
+const AGENT_ROLES: Record<string, string> = {
+  'job-scout': '채용 리서처',
+  'job-analyst': '채용 분석가',
+  'job-writer': '카피라이터',
+  'portfolio-builder': '에디터',
+  'thesis-assistant': '연구원',
+  'Explore': '연구원',
+  'presentation-maker': '디자이너',
+  'Plan': '디자이너',
+  'general-purpose': '엔지니어',
+};
+// Anything else: home-folder sessions and unknown folders = 잡무 → 비서실장;
+// other installed agents (e.g. the wshobson code agents) → 엔지니어.
+const MISC_ROLE = '비서실장';
+
+// Deepest folder in the path that has a role, so subfolders count too (취업/공고분석 → 취업).
+function sessionDisplayName(cwd: string): string {
+  const folder = cwd.split(path.sep).reverse().find((seg) => FOLDER_ROLES[seg]);
+  return folder ? FOLDER_ROLES[folder] : MISC_ROLE;
+}
+
+function subagentDisplayName(agentType: string | undefined): string {
+  const type = (agentType ?? '').split(':').pop() ?? '';
+  return AGENT_ROLES[type] ?? (type ? '엔지니어' : MISC_ROLE);
+}
+
 const SESSIONS_DIR = path.join(CLAUDE_DIR, 'sessions');
 const PROJECTS_DIR = path.join(CLAUDE_DIR, 'projects');
+
+// Claude Code names a project folder by turning every non-alphanumeric char of the cwd into '-'
+// (Korean letters included: /Documents/취업 → -Documents---).
+function projectDirFor(cwd: string): string {
+  return path.join(PROJECTS_DIR, cwd.replace(/[^a-zA-Z0-9]/g, '-'));
+}
 
 function isPidAlive(pid: number): boolean {
   try {
@@ -92,7 +135,7 @@ function inferBashActivity(bashInput: string): string {
 /**
  * Infer activity from a transcript JSONL file by scanning recent tool_use calls.
  */
-function inferActivityFromFile(transcriptPath: string): string {
+function inferActivityFromFile(transcriptPath: string, skipFinalAnswer = false): string {
   if (!fs.existsSync(transcriptPath)) return 'implementing';
 
   try {
@@ -101,7 +144,8 @@ function inferActivityFromFile(transcriptPath: string): string {
 
     const CHUNK_SIZE = 50_000;
     const MAX_READ = 500_000;
-    let foundAssistantResponse = false;
+    // skipFinalAnswer: pretend the final text-only answer was already seen, so we look past it.
+    let foundAssistantResponse = skipFinalAnswer;
 
     for (let offset = 0; offset < Math.min(stat.size, MAX_READ); offset += CHUNK_SIZE) {
       const readSize = Math.min(CHUNK_SIZE, stat.size - offset);
@@ -141,6 +185,7 @@ function inferActivityFromFile(transcriptPath: string): string {
         if (!Array.isArray(content)) continue;
 
         for (const block of content) {
+          if (skipFinalAnswer && block.name === 'SubagentHandback') continue;
           if (block.type === 'tool_use' && block.name) {
             fs.closeSync(fd);
             return inferActivityFromTool(block.name, block.input);
@@ -150,7 +195,7 @@ function inferActivityFromFile(transcriptPath: string): string {
     }
 
     fs.closeSync(fd);
-    return 'idle';
+    return skipFinalAnswer ? 'implementing' : 'idle';
   } catch {
     return 'implementing';
   }
@@ -160,8 +205,7 @@ function inferActivityFromFile(transcriptPath: string): string {
  * Find the most recent transcript for a project and infer activity.
  */
 function inferActivityFromTranscript(cwd: string): string {
-  const encodedCwd = cwd.replace(/\//g, '-');
-  const projectDir = path.join(PROJECTS_DIR, encodedCwd);
+  const projectDir = projectDirFor(cwd);
 
   if (!fs.existsSync(projectDir)) return 'implementing';
 
@@ -179,14 +223,14 @@ function inferActivityFromTranscript(cwd: string): string {
  * A subagent is "active" if its transcript was modified within the last 30 seconds.
  */
 function detectSubagents(cwd: string, parentId: string, parentPid: number): DetectedAgent[] {
-  const encodedCwd = cwd.replace(/\//g, '-');
-  const projectDir = path.join(PROJECTS_DIR, encodedCwd);
+  const projectDir = projectDirFor(cwd);
 
   if (!fs.existsSync(projectDir)) return [];
 
   const subagents: DetectedAgent[] = [];
   const now = Date.now();
   const ACTIVE_THRESHOLD = 30_000; // 30 seconds
+  const FINISH_GRACE = 10_000; // keep 'working' 10s after the subagent finishes
 
   // Scan all session dirs for subagents
   const sessionDirs = fs.readdirSync(projectDir, { withFileTypes: true })
@@ -210,13 +254,19 @@ function detectSubagents(cwd: string, parentId: string, parentPid: number): Dete
 
         // Read meta
         const meta = JSON.parse(fs.readFileSync(path.join(subagentsDir, metaFile), 'utf-8'));
-        const description = meta.description || meta.agentType || 'subagent';
 
-        const activity = inferActivityFromFile(transcriptPath);
+        // Finished (meta.finished, or a text-only final answer) → keep showing its last work
+        // for FINISH_GRACE, then 'idle'. Subagents end with a SubagentHandback tool call, not text.
+        let activity = inferActivityFromFile(transcriptPath);
+        if (meta.finished === true || activity === 'idle') {
+          activity = now - transcriptStat.mtimeMs <= FINISH_GRACE
+            ? inferActivityFromFile(transcriptPath, true)
+            : 'idle';
+        }
 
         subagents.push({
           id: agentId,
-          name: `${description}`,
+          name: subagentDisplayName(meta.agentType),
           pid: parentPid,
           cwd,
           startedAt: transcriptStat.birthtimeMs,
@@ -248,7 +298,7 @@ export function detectAgents(): DetectedAgent[] {
       if (!alive) continue;
 
       const activity = inferActivityFromTranscript(session.cwd);
-      const name = path.basename(session.cwd);
+      const name = sessionDisplayName(session.cwd);
 
       agents.push({
         id: session.sessionId,

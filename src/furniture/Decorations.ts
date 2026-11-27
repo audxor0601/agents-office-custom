@@ -1,6 +1,11 @@
 import * as THREE from 'three';
 import { getToonMaterial } from '../utils/Materials.js';
 import { Colors } from '../utils/Colors.js';
+import { themeName } from '../utils/Theme.js';
+
+// Command-center: no plants or rugs; back-wall clock/art would sit behind the situation board
+const commandCenter = themeName === 'command-center';
+const backWallFree = !commandCenter;
 
 export function createPlant(scale = 1): THREE.Group {
   const group = new THREE.Group();
@@ -161,6 +166,7 @@ export function createDecorations(): THREE.Group {
   for (const [x, y, z] of smallPlantPositions) {
     const plant = createPlant();
     plant.position.set(x, y, z);
+    plant.visible = !commandCenter;
     group.add(plant);
   }
 
@@ -176,43 +182,51 @@ export function createDecorations(): THREE.Group {
   for (const [x, y, z] of tallPlantPositions) {
     const plant = createTallPlant();
     plant.position.set(x, y, z);
+    plant.visible = !commandCenter;
     group.add(plant);
   }
 
   // Clock on back wall
   const clock = createClock();
   clock.position.set(0, 4.5, -12.9);
+  clock.visible = backWallFree;
   group.add(clock);
 
   // Wall art on back wall
   const art1 = createWallArt(0.8, 0.5, 0x4477aa);
   art1.position.set(-9, 3.0, -12.9);
+  art1.visible = backWallFree;
   group.add(art1);
 
   const art2 = createWallArt(0.6, 0.8, 0xaa5544);
   art2.position.set(9, 3.2, -12.9);
+  art2.visible = backWallFree;
   group.add(art2);
 
   // Wall art on left wall
   const art3 = createWallArt(0.7, 0.5, 0x55aa77);
   art3.position.set(-14.9, 3.0, -7);
   art3.rotation.y = Math.PI / 2;
+  art3.visible = !commandCenter;
   group.add(art3);
 
   const art4 = createWallArt(0.9, 0.6, 0xcc9944);
   art4.position.set(-14.9, 3.0, 7);
   art4.rotation.y = Math.PI / 2;
+  art4.visible = !commandCenter;
   group.add(art4);
 
   // Wall art on right wall
   const art5 = createWallArt(0.8, 0.6, 0x7755aa);
   art5.position.set(14.9, 3.0, -3);
   art5.rotation.y = -Math.PI / 2;
+  art5.visible = !commandCenter;
   group.add(art5);
 
   // Meeting area rug
   const meetingRug = createRug(5, 5, 0x7a6a5a);
   meetingRug.position.set(9, 0.01, 9);
+  meetingRug.visible = !commandCenter;
   group.add(meetingRug);
 
   return group;

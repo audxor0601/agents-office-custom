@@ -4,7 +4,7 @@ type ColorInput = THREE.Color | number;
 
 const cache = new Map<string, THREE.MeshToonMaterial>();
 
-const gradientTexture = (() => {
+export const gradientTexture = (() => {
   const canvas = document.createElement('canvas');
   canvas.width = 4;
   canvas.height = 1;

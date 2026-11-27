@@ -20,16 +20,16 @@ export const ACTIVITIES: Activity[] = [
 ];
 
 export const ACTIVITY_LABELS: Record<Activity, string> = {
-  idle: 'Taking a break',
-  planning: 'Planning',
-  implementing: 'Implementing',
-  researching: 'Researching',
-  testing: 'Running tests',
-  debugging: 'Debugging',
-  reviewing: 'Reviewing',
-  writing_docs: 'Writing docs',
-  deploying: 'Deploying',
-  meeting: 'In a meeting',
+  idle: '휴식 중',
+  planning: '계획 중',
+  implementing: '작업 중',
+  researching: '조사 중',
+  testing: '테스트 중',
+  debugging: '오류 수정 중',
+  reviewing: '검토 중',
+  writing_docs: '문서 작성 중',
+  deploying: '배포 중',
+  meeting: '회의 중',
 };
 
 const AGENT_NAMES = [

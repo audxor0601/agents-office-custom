@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { getToonMaterial } from '../utils/Materials.js';
 import { Colors } from '../utils/Colors.js';
 import { OFFICE } from '../utils/Constants.js';
+import { themeName } from '../utils/Theme.js';
 
 export function createFloor(): THREE.Group {
   const group = new THREE.Group();
@@ -19,6 +20,7 @@ export function createFloor(): THREE.Group {
   carpet.rotation.x = -Math.PI / 2;
   carpet.position.set(0, 0.01, 0);
   carpet.receiveShadow = true;
+  carpet.visible = themeName !== 'command-center'; // bare floor in command-center
   group.add(carpet);
 
   return group;

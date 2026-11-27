@@ -3,6 +3,10 @@ import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { Colors } from '../utils/Colors.js';
 import { initFreeCamera } from './FreeCamera.js';
 import { createCeilingLampWithLight } from '../furniture/CeilingLamp.js';
+import { getEmissiveMaterial } from '../utils/Materials.js';
+import { theme } from '../utils/Theme.js';
+
+export const ALARM_INTENSITY = 1.5;
 
 export function createScene() {
   // Scene
@@ -26,7 +30,7 @@ export function createScene() {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.0;
+  renderer.toneMappingExposure = theme.lighting.exposure;
   document.body.appendChild(renderer.domElement);
 
   // CSS2D Renderer for labels
@@ -43,11 +47,12 @@ export function createScene() {
   // --- Lighting ---
 
   // Ambient light (soft fill for the whole room)
-  const ambientLight = new THREE.AmbientLight(0x9999bb, 1.0);
+  const L = theme.lighting;
+  const ambientLight = new THREE.AmbientLight(L.ambient.color, L.ambient.intensity);
   scene.add(ambientLight);
 
   // Hemisphere light (sky/ground bounce)
-  const hemiLight = new THREE.HemisphereLight(0xdddde8, 0x998866, 0.6);
+  const hemiLight = new THREE.HemisphereLight(L.hemi.sky, L.hemi.ground, L.hemi.intensity);
   hemiLight.position.set(0, 10, 0);
   scene.add(hemiLight);
 
@@ -65,6 +70,20 @@ export function createScene() {
     scene.add(light.target);
   }
 
+  // Red warning beacons (command-center theme only; pulsed in main.ts)
+  const alarmLights: THREE.PointLight[] = [];
+  const beaconMat = getEmissiveMaterial(0x661010, 0xff2a1a, 2);
+  for (const [x, y, z] of L.alarms) {
+    const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.15, 12, 8), beaconMat);
+    beacon.position.set(x, y, z);
+    scene.add(beacon);
+    // Small local glow only (2.5-unit reach) so it doesn't tint the room
+    const light = new THREE.PointLight(0xff2a1a, ALARM_INTENSITY, 2.5, 2);
+    light.position.set(x, y - 0.3, z + 0.3);
+    scene.add(light);
+    alarmLights.push(light);
+  }
+
   // Resize handler
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -73,5 +92,5 @@ export function createScene() {
     labelRenderer.setSize(window.innerWidth, window.innerHeight);
   });
 
-  return { scene, camera, renderer, labelRenderer };
+  return { scene, camera, renderer, labelRenderer, alarmLights };
 }

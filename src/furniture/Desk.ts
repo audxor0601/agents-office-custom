@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { getToonMaterial, getEmissiveMaterial } from '../utils/Materials.js';
 import { Colors } from '../utils/Colors.js';
+import { themeName } from '../utils/Theme.js';
+import { getMonitorMaterial } from './CommandScreens.js';
 
 export function createDesk(hasMonitor = true) {
   const group = new THREE.Group();
@@ -46,7 +48,10 @@ export function createDesk(hasMonitor = true) {
 
     // Screen face (front)
     const faceGeo = new THREE.PlaneGeometry(0.62, 0.38);
-    const face = new THREE.Mesh(faceGeo, getEmissiveMaterial(Colors.monitorScreen, Colors.monitorScreen, 0.8));
+    const faceMat = themeName === 'command-center'
+      ? getMonitorMaterial()
+      : getEmissiveMaterial(Colors.monitorScreen, Colors.monitorScreen, 0.8);
+    const face = new THREE.Mesh(faceGeo, faceMat);
     face.position.set(0, 1.17, -0.133);
     group.add(face);
     group.userData.screenFace = face;
@@ -63,6 +68,7 @@ export function createDesk(hasMonitor = true) {
   const chairGroup = createChair();
   chairGroup.position.set(0, 0, 0.7);
   group.add(chairGroup);
+  group.userData.chair = chairGroup;
 
   return group;
 }

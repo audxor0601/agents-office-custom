@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { getToonMaterial } from '../utils/Materials.js';
 import { Colors } from '../utils/Colors.js';
 import { OFFICE } from '../utils/Constants.js';
+import { themeName } from '../utils/Theme.js';
 
 export function createWalls(): THREE.Group {
   const group = new THREE.Group();
@@ -18,6 +19,7 @@ export function createWalls(): THREE.Group {
   // Back wall (z = -HZ)
   const backWall = new THREE.Mesh(new THREE.BoxGeometry(fullX, H, W), wallMat);
   backWall.position.set(0, Y, -HZ);
+  backWall.name = 'wall-back'; // situation-board wall (photo mode hides it for shot ②)
   backWall.castShadow = true;
   backWall.receiveShadow = true;
   group.add(backWall);
@@ -25,6 +27,7 @@ export function createWalls(): THREE.Group {
   // Front wall (z = +HZ)
   const frontWall = new THREE.Mesh(new THREE.BoxGeometry(fullX, H, W), wallMat);
   frontWall.position.set(0, Y, HZ);
+  frontWall.name = 'wall-front'; // taegukgi wall behind the commander (hidden for shot ①)
   frontWall.castShadow = true;
   frontWall.receiveShadow = true;
   group.add(frontWall);
@@ -44,20 +47,22 @@ export function createWalls(): THREE.Group {
   group.add(rightWall);
 
   // Ceiling
-  const ceilingMat = getToonMaterial(0xf2ede5);
+  const ceilingMat = getToonMaterial(Colors.ceiling);
   const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(HX * 2, HZ * 2), ceilingMat);
   ceiling.rotation.x = Math.PI / 2;
   ceiling.position.y = H;
+  ceiling.name = 'ceiling'; // hidden in every photo-mode shot
   ceiling.receiveShadow = true;
   group.add(ceiling);
 
   // Low divider walls between areas
   const dividerGeo = new THREE.BoxGeometry(0.1, 1.2, 4);
-  const dividerMat = getToonMaterial(0xd0d0d0);
+  const dividerMat = getToonMaterial(Colors.divider);
 
   const divider1 = new THREE.Mesh(dividerGeo, dividerMat);
   divider1.position.set(-4, 0.6, 1.5);
   divider1.castShadow = true;
+  divider1.visible = themeName !== 'command-center'; // keeps the center aisle open
   group.add(divider1);
 
   return group;

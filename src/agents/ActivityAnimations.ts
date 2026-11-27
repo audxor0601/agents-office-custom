@@ -93,10 +93,16 @@ export function animateWalking(j: Joints, elapsed: number, dt: number): void {
   j.neck.position.y = approachY(j.neck.position.y, 1.6 + bounce, dt, 15);
 }
 
-export function animateActivity(joints: Joints, activity: Activity, elapsed: number, delta: number): void {
+/**
+ * hold: undefined = original idle pose (cup to chest, default theme)
+ *       null      = arms resting down (command-center: 대기 / 휴식)
+ *       0..1      = holding a cup, 1 = cup at the mouth (sip)
+ */
+export function animateActivity(joints: Joints, activity: Activity, elapsed: number, delta: number, seated = false, hold?: number | null): void {
   switch (activity) {
     case 'idle':
-      animateIdle(joints, elapsed, delta);
+      if (hold === undefined) animateIdle(joints, elapsed, delta, seated);
+      else animateRest(joints, elapsed, delta, seated, hold);
       break;
     case 'planning':
       animatePlanning(joints, elapsed, delta);
@@ -123,14 +129,14 @@ export function animateActivity(joints: Joints, activity: Activity, elapsed: num
       animateDeploying(joints, elapsed, delta);
       break;
     case 'meeting':
-      animateMeeting(joints, elapsed, delta);
+      animateMeeting(joints, elapsed, delta, seated);
       break;
   }
 }
 
 // --- IDLE: Holding coffee cup, subtle sway ---
-function animateIdle(j: Joints, t: number, dt: number): void {
-  applyStandingBase(j, dt);
+function animateIdle(j: Joints, t: number, dt: number, seated = false): void {
+  (seated ? applySittingBase : applyStandingBase)(j, dt);
 
   const sway = Math.sin(t * 0.8) * 0.03;
   j.body.rotation.z = approach(j.body.rotation.z, sway, dt);
@@ -142,6 +148,32 @@ function animateIdle(j: Joints, t: number, dt: number): void {
   j.leftForearm.rotation.x = approach(j.leftForearm.rotation.x, -0.1, dt);
 
   j.neck.rotation.z = approach(j.neck.rotation.z, Math.sin(t * 0.5) * 0.05, dt);
+}
+
+// --- REST (command-center): arms down, or holding / sipping a cup ---
+function animateRest(j: Joints, t: number, dt: number, seated: boolean, hold: number | null): void {
+  (seated ? applySittingBase : applyStandingBase)(j, dt);
+  j.body.rotation.z = approach(j.body.rotation.z, Math.sin(t * 0.8) * 0.02, dt);
+
+  // Arms down: seated = hands resting on the thighs, standing = hanging at the sides
+  const downUpper = seated ? -0.35 : 0.05;
+  const downFore = seated ? -0.9 : -0.1;
+  j.leftUpperArm.rotation.x = approach(j.leftUpperArm.rotation.x, downUpper, dt);
+  j.leftForearm.rotation.x = approach(j.leftForearm.rotation.x, downFore, dt);
+  j.leftUpperArm.rotation.z = approach(j.leftUpperArm.rotation.z, 0, dt);
+
+  if (hold === null) {
+    j.rightUpperArm.rotation.x = approach(j.rightUpperArm.rotation.x, downUpper, dt);
+    j.rightForearm.rotation.x = approach(j.rightForearm.rotation.x, downFore, dt);
+    j.neck.rotation.x = approach(j.neck.rotation.x, 0, dt);
+  } else {
+    // Cup held in front of the chest; hold → 1 brings it up to the mouth
+    j.rightUpperArm.rotation.x = approach(j.rightUpperArm.rotation.x, -0.7 - hold * 0.55, dt);
+    j.rightForearm.rotation.x = approach(j.rightForearm.rotation.x, -1.2 - hold * 0.95, dt);
+    j.neck.rotation.x = approach(j.neck.rotation.x, -hold * 0.18, dt);
+  }
+  j.rightUpperArm.rotation.z = approach(j.rightUpperArm.rotation.z, 0, dt);
+  j.neck.rotation.z = approach(j.neck.rotation.z, 0, dt);
 }
 
 // --- PLANNING: Writing on whiteboard ---
@@ -292,8 +324,8 @@ function animateDeploying(j: Joints, t: number, dt: number): void {
 }
 
 // --- MEETING: Gesturing, conversing ---
-function animateMeeting(j: Joints, t: number, dt: number): void {
-  applyStandingBase(j, dt);
+function animateMeeting(j: Joints, t: number, dt: number, seated = false): void {
+  (seated ? applySittingBase : applyStandingBase)(j, dt);
 
   const gesture = Math.sin(t * 2);
   j.rightUpperArm.rotation.x = approach(j.rightUpperArm.rotation.x, -1.0 + gesture * 0.4, dt);

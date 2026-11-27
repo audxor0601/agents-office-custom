@@ -4,3 +4,5 @@ dist
 .claude
 .agents
 skills-lock.json
+.backup-*/
+*.bak-*

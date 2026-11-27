@@ -1,12 +1,13 @@
 import * as THREE from 'three';
 import { getToonMaterial, getEmissiveMaterial } from '../utils/Materials.js';
 import { OFFICE } from '../utils/Constants.js';
+import { theme } from '../utils/Theme.js';
 
 export function createCeilingLamp(): THREE.Group {
   const group = new THREE.Group();
 
   const metalMat = getToonMaterial(0x555555);
-  const panelColor = 0xeeeeff;
+  const panelColor = theme.lighting.lamp.panel;
 
   // Housing — rectangular box (the lamp body)
   const housingGeo = new THREE.BoxGeometry(2.4, 0.08, 0.6);
@@ -77,7 +78,8 @@ export function createCeilingLampWithLight(x: number, z: number): {
   lampGroup.position.set(x, lampY, z);
 
   // SpotLight pointing down from the lamp
-  const light = new THREE.SpotLight(0xfff5e6, 3, 20, Math.PI / 3, 0.5, 1);
+  const { color, intensity } = theme.lighting.lamp;
+  const light = new THREE.SpotLight(color, intensity, 20, Math.PI / 3, 0.5, 1);
   light.position.set(x, lampY - 0.1, z);
   light.target.position.set(x, 0, z);
   light.castShadow = true;

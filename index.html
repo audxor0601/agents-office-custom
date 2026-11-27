@@ -92,14 +92,68 @@
       font-size: 12px;
       cursor: pointer;
     }
+    /* --- 촬영 모드 --- */
+    #photo-btn {
+      position: fixed; left: 16px; bottom: 60px; z-index: 300; padding: 8px 14px;
+      background: rgba(20, 20, 40, .9); color: #e0e0ff; border: 1px solid rgba(120, 120, 255, .4);
+      border-radius: 8px; font: 13px system-ui, sans-serif; cursor: pointer;
+    }
+    body.photo-mode #photo-btn { bottom: 16px; opacity: .55; }
+    body.photo-mode #photo-btn:hover { opacity: 1; }
+    body.photo-mode #ui-panel,
+    body.photo-mode #pointer-hint,
+    body.photo-mode #theme-toggle { display: none !important; }
+    /* --- 패널 최소화 --- */
+    #ui-panel h2 { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    #agent-count { color: #8888ff; font-size: 12px; font-weight: 400; margin-left: 6px; }
+    #panel-min {
+      background: rgba(40, 40, 80, 0.8); color: #e0e0ff;
+      border: 1px solid rgba(120, 120, 255, 0.3); border-radius: 4px;
+      width: 24px; height: 24px; line-height: 20px; padding: 0;
+      font-size: 14px; cursor: pointer;
+    }
+    #panel-min:hover { background: rgba(80, 80, 160, 0.9); }
+    #ui-panel.collapsed { min-width: 0; padding: 8px 12px; overflow: hidden; }
+    #ui-panel.collapsed h2 { margin: 0; padding: 0; border: 0; }
+    #ui-panel.collapsed #agent-list { display: none; }
   </style>
 </head>
 <body>
   <div id="pointer-hint">Click to look around &mdash; WASD to move &mdash; Space/Q up/down &mdash; Shift = fast &mdash; ESC to release</div>
   <div id="ui-panel">
-    <h2>Agents Office</h2>
+    <h2><span>근무 현황<span id="agent-count"></span></span><button id="panel-min" title="접기">&minus;</button></h2>
     <div id="agent-list"></div>
   </div>
+  <button id="theme-toggle" style="position:fixed;left:16px;bottom:16px;z-index:300;padding:8px 14px;
+    background:rgba(20,20,40,.9);color:#e0e0ff;border:1px solid rgba(120,120,255,.4);border-radius:8px;
+    font:13px system-ui,sans-serif;cursor:pointer">테마 전환</button>
+  <script>
+    // 오른쪽 에이전트 패널 접기/펼치기 (상태는 브라우저에 기억)
+    (function () {
+      var panel = document.getElementById('ui-panel');
+      var btn = document.getElementById('panel-min');
+      var list = document.getElementById('agent-list');
+      var count = document.getElementById('agent-count');
+      var KEY = 'agentPanelCollapsed';
+      function apply(collapsed) {
+        panel.classList.toggle('collapsed', collapsed);
+        btn.innerHTML = collapsed ? '&#43;' : '&minus;';
+        btn.title = collapsed ? '펼치기' : '접기';
+      }
+      var saved = false;
+      try { saved = localStorage.getItem(KEY) === '1'; } catch (e) {}
+      apply(saved);
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var next = !panel.classList.contains('collapsed');
+        apply(next);
+        try { localStorage.setItem(KEY, next ? '1' : '0'); } catch (e2) {}
+      });
+      function updateCount() { count.textContent = ' (' + list.children.length + ')'; }
+      new MutationObserver(updateCount).observe(list, { childList: true });
+      updateCount();
+    })();
+  </script>
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

@@ -9,6 +9,21 @@ const keys = new Set<string>();
 let yaw = 0;
 let pitch = 0;
 let locked = false;
+/** Photo mode: the camera is parked at a fixed shot (no WASD, no wall clamp). Mouse look still works. */
+let frozen = false;
+
+export function setCameraFrozen(value: boolean): void {
+  frozen = value;
+}
+
+/** Jump the camera to a position looking at a target (keeps yaw/pitch in sync). */
+export function setCameraView(camera: THREE.PerspectiveCamera, position: THREE.Vector3, target: THREE.Vector3): void {
+  camera.position.copy(position);
+  const dir = new THREE.Vector3().subVectors(target, position).normalize();
+  yaw = Math.atan2(-dir.x, -dir.z);
+  pitch = THREE.MathUtils.clamp(Math.asin(THREE.MathUtils.clamp(dir.y, -1, 1)), -Math.PI / 2 + 0.01, Math.PI / 2 - 0.01);
+  camera.quaternion.setFromEuler(new THREE.Euler(pitch, yaw, 0, 'YXZ'));
+}
 
 export function initFreeCamera(
   camera: THREE.PerspectiveCamera,
@@ -60,6 +75,7 @@ export function updateFreeCamera(camera: THREE.PerspectiveCamera, delta: number)
   // Apply look rotation
   const euler = new THREE.Euler(pitch, yaw, 0, 'YXZ');
   camera.quaternion.setFromEuler(euler);
+  if (frozen) return;
 
   // Movement
   const speed = keys.has('ShiftLeft') || keys.has('ShiftRight')
